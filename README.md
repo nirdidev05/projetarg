@@ -110,14 +110,17 @@ Format attendu :
 1. Créer un miroir public GitHub et y pousser la branche `main`.
 2. Sur https://share.streamlit.io : Create app, choisir le dépôt, la branche `main` et `app.py`.
 3. Dans Advanced settings, sélectionner Python 3.12.
-4. Reporter le lien public ici et dans le PDF.
+4. Dans les paramètres de l'appli (Settings → Sharing), rendre l'application **publique**, sinon le correcteur tombe sur une page de connexion.
+5. Reporter le lien public ici et dans le PDF.
 
-Lien de l'application : **à compléter après déploiement**
+Lien de l'application : **https://grp1projet.streamlit.app/**
 
 ## 8. État d'avancement de la partie 1
 
 - [x] Implémenter et tester le moteur ABA/ABA+ avec les valeurs du TD4.
 - [x] Mettre à jour l'application, le notebook et la documentation.
-- [ ] Créer le miroir GitHub public et déployer l'application sur Streamlit Cloud avec Python 3.12.
-- [ ] Reporter le lien public dans ce README et dans le PDF.
+- [x] Créer le miroir GitHub public et déployer l'application sur Streamlit Cloud avec Python 3.12.
+- [ ] Rendre l'application publique (elle redirige encore vers une page de connexion) et vérifier l'exemple du sujet en ligne.
+- [x] Reporter le lien public dans ce README.
+- [ ] Reporter le lien dans le PDF.
 - [ ] Rédiger la partie 1 du PDF (max 15 pages pour tout le projet), avec le lien et les instructions d'usage.
