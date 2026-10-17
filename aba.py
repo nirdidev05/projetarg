@@ -269,78 +269,66 @@ class ABAFramework:
                             prefs, origin)
 
     def to_non_circular(self) -> "ABAFramework":
-        """Supprime les cycles par copies indexées p_1..p_N (N = nb d'atomes têtes de règles) :
-        h_i <- (corps où chaque atome x est remplacé par x_{i-1}), et h_i <- h_{i-1}.
-        Les contraires de non-hypothèses c sont remplacés par c_N. Sans cycle : copie inchangée."""
+        """Supprime les cycles par copies indexées de tous les littéraux non-hypothèses.
+
+        Un atome s de X = non_assumptions() s'appelle s au niveau k et s_i aux
+        niveaux précédents. Les règles atomiques sont copiées à tous les niveaux,
+        tandis que les autres règles sont décalées d'un niveau. Sans cycle, une
+        copie du framework est renvoyée.
+        """
         if not self.is_circular():
             return self.copy()
         assum = set(self.assumptions)
-        heads = sorted({r.head for r in self.rules if r.head not in assum})
-        N = len(heads)
-        hs = set(heads)
-        idx = lambda x, k: f"{x}_{k}" if x in hs else x
+        X = self.non_assumptions()
+        k = len(X)
+        xs = set(X)
+
+        def name(atom: str, level: int) -> str:
+            return atom if atom in assum or level == k else f"{atom}_{level}"
+
         rules: List[Rule] = []
-        origin = dict(self.origin)
         for r in self.rules:
-            has_derived = any(b in hs for b in r.body)
-            for i in range(1, N + 1):
-                if has_derived and i == 1:
-                    continue
-                body = tuple(idx(b, i - 1) if b in hs else b for b in r.body)
-                rules.append(Rule(f"{r.id}.{i}", idx(r.head, i), body))
-        for h in heads:
-            for i in range(2, N + 1):
-                rules.append(Rule(f"c_{h}.{i}", f"{h}_{i}", (f"{h}_{i-1}",)))
-        contraries = {a: (idx(c, N) if c in hs else c) for a, c in self.contraries.items()}
-        lits = list(self.assumptions) + [x for x in self.literals if x not in assum and x not in hs]
-        for h in heads:
-            for i in range(1, N + 1):
-                lits.append(f"{h}_{i}")
-                origin[f"{h}_{i}"] = self.base(h)
-        return ABAFramework(lits, self.assumptions, contraries, rules, self.preferences, origin)
+            atomic = all(b in assum for b in r.body)
+            levels = range(1, k + 1) if atomic else range(2, k + 1)
+            for i in levels:
+                body = tuple(
+                    b if b in assum else name(b, i - 1)
+                    for b in r.body
+                ) if not atomic else r.body
+                rules.append(Rule(f"{r.id}.{i}", name(r.head, i), body))
+        contraries = dict(self.contraries)
+        lits = list(self.literals)
+        for s in X:
+            for i in range(1, k):
+                lits.append(f"{s}_{i}")
+        return ABAFramework(lits, self.assumptions, contraries, rules, self.preferences)
 
     def to_atomic(self) -> "ABAFramework":
-        """Dépliage complet : chaque règle devient  h <- {hypothèses}  (une règle par support
-        minimal dérivable). Les noms issus de to_non_circular sont ramenés à leur nom d'origine."""
-        assum = set(self.assumptions)
-        derived: Dict[str, Set[frozenset]] = {}
-        changed = True
-        while changed:
-            changed = False
-            for r in self.rules:
-                options = []
-                ok = True
-                for b in r.body:
-                    if b in assum:
-                        options.append([frozenset([b])])
-                    else:
-                        s = derived.get(b)
-                        if not s:
-                            ok = False
-                            break
-                        options.append(list(s))
-                if not ok:
-                    continue
-                for combo in itertools.product(*options):
-                    sup = frozenset().union(*combo) if combo else frozenset()
-                    tgt = derived.setdefault(r.head, set())
-                    if sup not in tgt:
-                        tgt.add(sup)
-                        changed = True
-        seen = set()
-        rules: List[Rule] = []
-        for h in sorted(derived):
-            for sup in sorted(derived[h], key=lambda s: (len(s), sorted(s))):
-                key = (self.base(h), sup)
-                if key in seen:
-                    continue
-                seen.add(key)
-                rules.append(Rule(f"u{len(rules)+1}", self.base(h), tuple(sorted(sup))))
-        contraries = {a: self.base(c) for a, c in self.contraries.items()}
-        lits = list(dict.fromkeys(
-            [self.base(x) for x in self.literals if x in assum or x not in self.origin]
-            + [self.base(c) for c in contraries.values()] + [r.head for r in rules]))
-        return ABAFramework(lits, self.assumptions, contraries, rules, self.preferences)
+        """Transforme un framework non circulaire en framework atomique sensitive.
+
+        La transformation suppose un framework non circulaire, ce que prepare()
+        garantit. Elle ne vérifie pas que chaque littéral non-hypothèse possède
+        un argument, conformément au corrigé.
+        """
+        assumptions = list(self.assumptions)
+        X = self.non_assumptions()
+        used = set(self.literals)
+        for s in X:
+            if f"{s}_d" in used or f"{s}_nd" in used:
+                raise ABAError(f"Noms réservés déjà présents pour '{s}'.")
+
+        new_assumptions = assumptions + [name for s in X for name in (f"{s}_d", f"{s}_nd")]
+        contraries = dict(self.contraries)
+        for s in X:
+            contraries[f"{s}_d"] = f"{s}_nd"
+            contraries[f"{s}_nd"] = s
+        assum = set(assumptions)
+        rules = [
+            Rule(r.id, r.head, tuple(b if b in assum else f"{b}_d" for b in r.body))
+            for r in self.rules
+        ]
+        literals = list(dict.fromkeys(self.literals + new_assumptions))
+        return ABAFramework(literals, new_assumptions, contraries, rules, self.preferences)
 
     def prepare(self) -> "ABAFramework":
         """Pipeline complet : plat -> non circulaire -> atomique."""
@@ -403,15 +391,12 @@ class ABAFramework:
 
     def arguments(self) -> List[Argument]:
         """Tous les arguments (claim, support) avec un arbre de dérivation.
-        Un argument est un arbre NON circulaire : si les règles sont circulaires, on passe par
-        to_non_circular() (une dérivation qui répète un atome sur une branche ne donne qu'un
-        support non minimal, elle est donc écartée), puis on ramène les noms d'origine."""
-        fw = self if not self.is_circular() else self.to_non_circular()
-        raw = fw._raw_arguments()
-        rename = lambda t: (fw.base(t[0]), t[1], tuple(rename(c) for c in t[2]))
+        Les arguments sont les paires (feuilles, claim) de tous les arbres,
+        y compris lorsque le framework contient des cycles."""
+        raw = self._raw_arguments()
         found: Dict[Tuple[str, frozenset], tuple] = {}
         for (c, s), t in raw.items():
-            found.setdefault((fw.base(c), s), rename(t))
+            found.setdefault((c, s), t)
         ordered = sorted(found.items(), key=lambda kv: (len(kv[0][1]), kv[0][0], sorted(kv[0][1])))
         return [Argument(f"A{i}", c, s, t) for i, ((c, s), t) in enumerate(ordered, 1)]
 
@@ -438,6 +423,47 @@ class ABAFramework:
                         out.add(Attack(B.id, A.id, "reverse", weaker[0]))
         num = lambda s: int(s[1:])
         return sorted(out, key=lambda t: (num(t.attacker), num(t.target), t.kind))
+
+    def set_attacks(self, use_preferences=True):
+        """Calcule les attaques ABA+ entre tous les sous-ensembles d'hypothèses.
+
+        Renvoie deux ensembles de couples (X, Y), pour les attaques normales et
+        inversées. Un framework de plus de dix hypothèses est refusé car les
+        sous-ensembles produisent rapidement trop de couples à examiner.
+        """
+        if len(self.assumptions) > 10:
+            raise ABAError("Le calcul ABA+ entre ensembles est limité à 10 hypothèses.")
+
+        prefs = use_preferences and bool(self.preferences)
+        geq = self._geq() if prefs else set()
+        lt = lambda a, b: (b, a) in geq and (a, b) not in geq
+        by_contrary: Dict[str, List[str]] = {}
+        for assumption, contrary in self.contraries.items():
+            by_contrary.setdefault(contrary, []).append(assumption)
+
+        assumptions = tuple(self.assumptions)
+        subsets = [
+            frozenset(combo)
+            for size in range(len(assumptions) + 1)
+            for combo in itertools.combinations(assumptions, size)
+        ]
+        normal: Set[Tuple[frozenset, frozenset]] = set()
+        reverse: Set[Tuple[frozenset, frozenset]] = set()
+        for argument in self.arguments():
+            for contrary_assumption in by_contrary.get(argument.claim, []):
+                if any(lt(s, contrary_assumption) for s in argument.support):
+                    for X in subsets:
+                        if contrary_assumption in X:
+                            for Y in subsets:
+                                if argument.support <= Y:
+                                    reverse.add((X, Y))
+                else:
+                    for X in subsets:
+                        if argument.support <= X:
+                            for Y in subsets:
+                                if contrary_assumption in Y:
+                                    normal.add((X, Y))
+        return normal, reverse
 
     # ------------------------------------------------------------------ export
     def to_dot(self, arguments=None, attacks=None) -> str:
