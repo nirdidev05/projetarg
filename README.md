@@ -120,7 +120,7 @@ Lien de l'application : **https://grp1projet.streamlit.app/**
 - [x] Implémenter et tester le moteur ABA/ABA+ avec les valeurs du TD4.
 - [x] Mettre à jour l'application, le notebook et la documentation.
 - [x] Créer le miroir GitHub public et déployer l'application sur Streamlit Cloud avec Python 3.12.
-- [ ] Rendre l'application publique (elle redirige encore vers une page de connexion) et vérifier l'exemple du sujet en ligne.
+- [x] Rendre l'application publique (accessible sans compte Streamlit).
 - [x] Reporter le lien public dans ce README.
 - [ ] Reporter le lien dans le PDF.
 - [ ] Rédiger la partie 1 du PDF (max 15 pages pour tout le projet), avec le lien et les instructions d'usage.
