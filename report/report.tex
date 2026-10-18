@@ -22,16 +22,12 @@
 \newcommand{\code}[1]{\texttt{\detokenize{#1}}}
 \newcommand{\metric}[1]{\textbf{#1}}
 
-\title{Argumentation Theory Project Report}
-\author{[Group number] \\ [Full names]}
-\date{[Submission date]}
-
 \begin{document}
 \begin{center}
 {\LARGE\bfseries Argumentation Theory Project Report\par}
 \vspace{0.75em}
-{[Group number] \textbar{} [Full names]\par}
-{[Submission date]\par}
+\vspace{0.25em}
+{BENBOUTA WALID \textbullet{} LAARIF RAYEN \textbullet{} RANDRIAMANANTENA ARO\par}
 \end{center}
 
 \begin{abstract}
@@ -69,6 +65,29 @@ The Streamlit application is deployed at \href{https://grp1projet.streamlit.app/
 \end{figure}
 
 The parser and transformations are tested against course examples, including cyclic conversions and preference-sensitive attacks. \code{test_aba.py} contains the targeted tests. One limitation is that cycle detection is syntactic: it detects cycles in the non-assumption dependency graph and may flag a cycle even when no argument can be derived through it. The implementation constructs arguments and attacks; it does not compute extensions.
+
+\subsection{Transformations and TD4 validation}
+
+The conversion pipeline treats two structural properties separately. First, \code{to_non_circular()} removes cycles among non-assumption literals by making bounded levels of each such literal. Atomic rules are copied to every level; other rules at a level use non-assumption premises from the preceding level. The final level retains the original literal names and assumptions are not renamed. The construction is intended to preserve the relevant extension semantics while bounding derivation depth. Cycle detection is syntactic and can conservatively report a cycle that cannot occur in an actual argument tree.
+
+Second, \code{to_atomic()} applies the sensitive atomic construction to a non-circular framework. For every non-assumption literal $s$, it introduces assumptions $s_d$ and $s_{nd}$ with contraries $s_{nd}$ and $s$, respectively, and replaces non-assumption literals in rule bodies with their $d$-assumptions. Consequently, every transformed rule body contains assumptions only. \code{prepare()} applies flattening where needed, followed by non-circular conversion and atomic conversion. This construction provides the intended extension-level correspondence; it does not assert that individual arguments in the transformed and original frameworks are identical.
+
+The implementation was checked against the official TD4 correction and course constructions. Tests verify exact transformed rules and attack pairs as well as totals:
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{lXr}
+\toprule
+Case & Expected result & Status \\
+\midrule
+Exercise 1, original ABA & 8 arguments; 10 attacks & PASS \\
+Exercise 1, sensitive atomic form & 13 assumptions; 5 rules; 18 arguments & PASS \\
+Exercise 2, non-circular form & 12 rules; 10 arguments; 12 attacks & PASS \\
+Exercise 2, atomic form & 20 assumptions; 12 rules; 32 arguments & PASS \\
+Exercise 3, ABA+ & 12 normal; 8 reverse set attacks & PASS \\
+\bottomrule
+\end{tabularx}
+\end{center}
+The atomic argument counts use the course-based calculation; they do not imply equality of argument lists. Extension results quoted in the course correction are not presented as computations performed by this generator.
 
 \subsection{Reproduction}
 
@@ -166,6 +185,31 @@ The binary task is imbalanced (one positive to three negatives), so accuracy is 
 
 The classification results are below the 80--94\% scores reported by larger or fine-tuned models in the literature. This is not a like-for-like benchmark: datasets, domains, splits, and model capacity differ. Our discussion-level split and duplicate-text filtering are deliberately strict, and the baselines are not tuned. Published results are therefore context, not a direct controlled comparison. The main next step would be a jointly trained cross-encoder; for discovery, a retrieval stage followed by reranking with hard local negatives is a plausible extension.
 
+\subsubsection{Comparison with existing approaches}
+
+The subject asks how our approach performs relative to existing work. Table~\ref{tab:literature} summarizes the reported figures in the source comparison. Our scores are lower than those of fine-tuned transformer and prompted large-language-model systems. This difference is consistent with our simpler models and stricter discussion-level split, but the comparison is not controlled: the works differ in data snapshots, domains, splits, class setup, and sometimes the task itself.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Relation classification and related-task results reported in the cited studies and this project. Metrics are retained as reported; these are not direct head-to-head comparisons.}
+\label{tab:literature}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.25\linewidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{0.23\linewidth}}
+\toprule
+Study, data and task & Published result & Our result \\
+\midrule
+Agarwal et al. (2022), GraphNLI. Kialo; 1,560 debates before 28 Jan 2020. Support/attack accuracy. & BoW + LR: 67.00\%; Sentence-BERT: 79.86\%; GraphNLI: 82.87\%. & B1 accuracy: 62.4\%; B2: 64.9\%. \\
+Gorur et al. (2024). Kialo 2022; 3 domains; LLMs prompted with 4 examples. Support F1 / attack F1 / macro-F1. & Llama 2 70B: 87/84/86\%; Mixtral 8x7B: 85/82/84\%; Mistral 7B: 83/83/83\%. & B2: 65/65/65\%. \\
+Faugier et al. (2024). Kialo 2024; 10 domains; fine-tuned Mistral 7B. Macro-F1. & 89.7--93.9\% across reported settings. & B2 macro-F1: 64.9\%. \\
+Ruiz-Dolz et al. (2021). US2016 and MM2012, not Kialo; 4 classes including artificial ``no relation''. Macro-F1. & RoBERTa-large: 0.70 on US2016; 0.61 on MM2012. & Discovery binary macro-F1: 0.691 (different task; 2 classes). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+For classification, B1's accuracy (62.4\%) is 4.6 percentage points below the GraphNLI bag-of-words baseline (67.0\%). B2 reaches 64.9\% accuracy and macro-F1, improving on B1 but remaining below the larger or fine-tuned systems. Our stricter split holds out entire debates and removes repeated claim texts across train and test; our models also do not encode child and parent jointly, and we did not tune on the validation set. These are plausible contributors to the gap, not a causal decomposition.
+
+The Ruiz-Dolz scores are from a four-class task on different corpora, so they are contextual rather than a comparable benchmark for our Kialo support/attack classifier. Likewise, none of these studies evaluates parent ranking on Kialo. For discovery, our reference is the random-ranking expectation: D1 reaches Hits@1 0.127 against 0.0025 expected at random, while binary D1 obtains macro-F1 0.691 on the constructed linked/not-linked task.
+
 \subsection{Reproduction and data provenance}
 
 The collection/parser workflow is documented in \code{part2_1_kialo_collection.ipynb}; modelling and evaluation are in \code{part2_2_relations.ipynb}. Core functions are in \code{part2_kialo.py} and \code{part2_relations.py}. Install the analysis dependencies and run the relevant tests:
@@ -184,6 +228,20 @@ For an argumentation framework $(A,R)$ and intrinsic weights $w(a)\in[0,1]$, the
 x(a)=\frac{w(a)}{1+\sum_{b\in Att(a)}x(b)}.
 \]
 In \code{part3.ipynb}, \code{sample_hc} fixes an ordering of the arguments, samples independent uniform weight vectors, and evaluates all argument scores in batches. The attack matrix is oriented so that its row-to-column product gives the total scores of the attackers of each argument. The implementation uses a damped fixed-point iteration and stops when the maximum change is below $\epsilon=10^{-9}$, with an explicit maximum-iteration failure. The default sample count is 100,000.
+
+\subsubsection{Weighted h-categorizer implementation (2 marks)}
+
+For a fixed weighted framework, define the update
+\[
+F_w(x)(a)=\frac{w(a)}{1+\sum_{b\in Att(a)}x(b)}.
+\]
+The \code{weighted_h_categorizer} function in \code{aba.py} computes scores by fixed-point iteration: it initializes scores from the supplied intrinsic weights, repeatedly applies $F_w$, and stops once $\max_{a\in A}|F_w(x)(a)-x(a)|\leq\epsilon$. It requires a finite $\epsilon>0$, exactly one weight in $[0,1]$ for each argument, and attacks whose endpoints are known arguments. Its default tolerance is $10^{-6}$.
+
+The Part 3 sampler uses a damped update
+\[
+x_{k+1}=\frac{1}{2}x_k+\frac{1}{2}F_w(x_k)
+\]
+to improve numerical stability for cyclic frameworks. Damping does not change the fixed points: $x=\frac{1}{2}x+\frac{1}{2}F_w(x)$ holds exactly if and only if $x=F_w(x)$. For the cases checked against \code{weighted_h_categorizer}, the resulting score vectors differ by at most $2\cdot10^{-9}$. The notebook's stopping tolerance is $10^{-9}$; damping changes the convergence path, not the semantics being approximated.
 
 For one argument the notebook shows a one-dimensional density histogram. For two arguments it computes the hull in the original score coordinates. For more than two arguments it centers the score vectors and projects them onto the first two principal components (PCA); it then computes and plots the convex hull in this 2D projection. A binned, Gaussian-smoothed heat map is masked outside the projected hull. Thus, for frameworks with more than two arguments, the figure is a visualization of the projected space, not the full $|A|$-dimensional convex hull.
 
@@ -243,12 +301,11 @@ The ABA generator implements the required framework parsing, transformations, ar
   \item F. Toni, ``A Tutorial on Assumption-Based Argumentation,'' \emph{Argument \& Computation}, 5(1), 2014.
   \item K. \v{C}yras and F. Toni, ``ABA+: Assumption-Based Argumentation with Preferences,'' KR, 2016.
   \item T. Lehtonen, A. Rapberger, M. Ulbricht, and J. P. Wallner, ``Argumentation Frameworks Induced by Assumption-Based Argumentation: Relating Size and Complexity,'' KR, 2023.
-  \item Agarwal et al. (2022), GraphNLI, and Gorur et al. (2024) are cited for the Kialo relation-classification comparisons summarized in the project report.
+  \item V. Agarwal, S. Joglekar, A. P. Young, and N. Sastry, ``GraphNLI: A Graph-based Natural Language Inference Model for Polarity Prediction in Online Debates,'' in \emph{Proceedings of The Web Conference 2022}, pp. 2729--2737, 2022. doi: \href{https://doi.org/10.1145/3485447.3512144}{10.1145/3485447.3512144}.
+  \item D. Gorur, A. Rago, and F. Toni, ``Can Large Language Models perform Relation-based Argument Mining?,'' arXiv:2402.11243, 2024. \href{https://arxiv.org/abs/2402.11243}{https://arxiv.org/abs/2402.11243}.
+  \item Faugier et al. (2024), Kialo relation classification on ten domains with fine-tuned Mistral-7B. The study and reported macro-F1 range (89.7--93.9\%) are included in Table~\ref{tab:literature}, following the project comparison notes.
+  \item Ruiz-Dolz et al. (2021), four-class relation classification on US2016 and MM2012, including the ``no relation'' class. The study and dataset-specific RoBERTa-large macro-F1 values are included in Table~\ref{tab:literature}, following the project comparison notes.
   \item The Kialo parser adaptation is based on \href{https://github.com/4mbroise/ADC}{4mbroise/ADC}; that repository has no licence. Adaptations to current exports are described in Section 2.1. No external implementation was copied into the ABA engine.
   \item B. Yun, INF2347M \emph{Argumentation Theory and Applications}, Universit\'e Lyon 1, 2026: Lectures 4A and 4B, TD4 and its official correction.
 \end{itemize}
-
-\section*{Submission note}
-Before submission, fill in the group details on the cover page and prepare the required separate, one-page contribution statement with each member's actual contribution and signature. Export this report to PDF and check the final page count against the 15-page limit. The notebooks should be submitted with their outputs preserved.
-
 \end{document}

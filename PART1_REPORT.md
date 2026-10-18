@@ -1,5 +1,7 @@
 # Part 1 - Reasoning with ABA and ABA+
 
+**Group members:** BENBOUTA WALID, LAARIF RAYEN, RANDRIAMANANTENA ARO
+
 ## Question 1.1 - ABA generator (4 marks)
 
 ### Aim and implementation map

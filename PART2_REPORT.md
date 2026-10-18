@@ -1,5 +1,7 @@
 # Part 2 - Relation-based argument mining on Kialo
 
+**Group members:** BENBOUTA WALID, LAARIF RAYEN, RANDRIAMANANTENA ARO
+
 ## Question 2.1 - Kialo collection and exploration (2 marks)
 
 ### Collection protocol
@@ -162,3 +164,10 @@ The following extensions are ordered by expected gain. All of them keep the same
 ### Reproducibility
 
 All results come from `part2_2_relations.ipynb`, executed with Python 3.14.2, pandas 3.0.6, numpy 2.5.4, scikit-learn 1.9.1, sentence-transformers 3.4.1 and torch 2.14.1, on an Apple M1 with 16 GB of RAM. `pyarrow` is not installed, so pandas uses the Python string backend; with `pyarrow`, the regular expression `\s` does not match some Unicode spaces and the duplicate count of Question 2.1 becomes 436 instead of 437, while all model results are unchanged. The seed is 42 for the split, the negatives and the classifiers. A full run of the notebook takes about 35 to 45 minutes, most of it spent building the negatives and ranking the candidates. The unit tests (`python -m pytest test_part2.py`) cover the parser, the split, the metrics, the tie handling in ranking, and the orientation of the discovery scores.
+
+### References for the literature comparison
+
+- V. Agarwal, S. Joglekar, A. P. Young, and N. Sastry. “GraphNLI: A Graph-based Natural Language Inference Model for Polarity Prediction in Online Debates.” The Web Conference, 2022, pp. 2729–2737. DOI: [10.1145/3485447.3512144](https://doi.org/10.1145/3485447.3512144).
+- D. Gorur, A. Rago, and F. Toni. “Can Large Language Models perform Relation-based Argument Mining?” arXiv:2402.11243, 2024. [https://arxiv.org/abs/2402.11243](https://arxiv.org/abs/2402.11243).
+- Faugier et al. (2024). Kialo relation-classification study across ten domains with fine-tuned Mistral-7B; the reported macro-F1 range is 89.7–93.9%. The project comparison notes identify the study by authorship, year, dataset, and model.
+- Ruiz-Dolz et al. (2021). Four-class relation-classification study on US2016 and MM2012, including an artificial “no relation” class; the comparison reports RoBERTa-large macro-F1 of 0.70 and 0.61, respectively.
