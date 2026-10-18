@@ -77,6 +77,36 @@ class Attack:
         return f"{self.attacker} -> {self.target}  ({self.kind}, via {self.via})"
 
 
+def weighted_h_categorizer(arguments: List[str], attacks: List[Attack],
+                           weights: Dict[str, float], epsilon: float = 1e-6) -> Dict[str, float]:
+    """Return weighted h-categorizer scores indexed by argument ID."""
+    if epsilon <= 0 or not float("-inf") < epsilon < float("inf"):
+        raise ValueError("epsilon must be a finite positive number")
+
+    nodes = set(arguments)
+    if set(weights) != nodes:
+        raise ValueError("weights must contain exactly one weight per argument")
+    if any(not 0 <= weight <= 1 for weight in weights.values()):
+        raise ValueError("argument weights must be in [0, 1]")
+
+    attackers = {argument: set() for argument in nodes}
+    for attack in attacks:
+        if attack.attacker not in nodes or attack.target not in nodes:
+            raise ValueError("attacks must reference known argument IDs")
+        attackers[attack.target].add(attack.attacker)
+
+    scores = dict(weights)
+    while scores:
+        updated = {
+            argument: weights[argument] / (1 + sum(scores[a] for a in attackers[argument]))
+            for argument in nodes
+        }
+        if max(abs(updated[a] - scores[a]) for a in nodes) <= epsilon:
+            return updated
+        scores = updated
+    return scores
+
+
 # --------------------------------------------------------------------------- #
 IDENT = r"[A-Za-z0-9_']+"
 
