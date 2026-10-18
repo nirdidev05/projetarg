@@ -120,3 +120,16 @@ def test_errors():
     import pytest
     with pytest.raises(ABAError): ABAFramework.from_text("L: [a]\nA: [a]\n")
     with pytest.raises(ABAError): ABAFramework.from_text("blabla")
+
+def test_weighted_h_categorizer():
+    arguments = ["A1", "A2"]
+    attacks = [Attack("A1", "A2", "normal", "a")]
+    scores = weighted_h_categorizer(arguments, attacks, {"A1": 1.0, "A2": 1.0})
+    assert scores == {"A1": 1.0, "A2": 0.5}
+
+    mutual_attacks = [Attack("A1", "A2", "normal", "a"),
+                      Attack("A2", "A1", "normal", "b")]
+    mutual_scores = weighted_h_categorizer(arguments, mutual_attacks,
+                                           {"A1": 1.0, "A2": 1.0})
+    expected = (5 ** 0.5 - 1) / 2
+    assert all(abs(score - expected) < 1e-6 for score in mutual_scores.values())
