@@ -33,7 +33,7 @@ The corpus contains 94,707 claims: 46,557 Pro, 47,642 Con, 490 theses and 18 que
 - **Stance by depth.** Near the thesis, stances are balanced (50.3% Con at depth 1). Deeper down, attacks dominate: 54.8% Con at depth 7 and 61.7% at depth 10 or more (Figure 8). Deep threads are mostly chains of rebuttals, so depth carries a weak signal about the label.
 - **Text.** Claims are short: the median is 22 words (140 characters), the 95th percentile is 50 words, and the longest claim has 117 words. A maximum length of 128 subword tokens is enough for transformer encoders.
 - **Topics.** The discussions use 377 distinct tags. The most frequent are Politics (56 discussions), Ethics (44), Society (39), USA (31) and Philosophy (27).
-- **Duplicates.** After normalization, 436 texts appear in more than one discussion. This is why we remove from the test set every pair whose text also appears in the training set (Question 2.2).
+- **Duplicates.** After normalization (lower case, collapsed whitespace), 437 texts appear in more than one discussion. This is why we remove from the test set every pair whose text also appears in the training set (Question 2.2).
 - **Activity.** The rank correlations (Spearman) between the number of claims and the number of views, votes and participants are 0.87, 0.80 and 0.76.
 
 ![Claims per discussion](report_assets/fig7_claims_per_discussion.png)
@@ -57,7 +57,7 @@ The corpus contains 94,707 claims: 46,557 Pro, 47,642 Con, 490 theses and 18 que
 
 ### Protocol
 
-**Split.** Data are split **by debate**, never by pair, so that no topic appears in both training and test data. The split is 70/15/15 with seed 42: 175 training debates, 37 validation debates and 38 test debates. Classification and discovery use the same split. Because 436 texts are repeated across discussions, every test pair whose child or parent text appears in the training data is removed. This leaves 69,333 training pairs and 14,450 test pairs for classification (169 test pairs removed). No hyperparameter was tuned, so the validation debates are not used. The test set contains 34 English debates and 4 debates in other languages.
+**Split.** Data are split **by debate**, never by pair, so that no topic appears in both training and test data. The split is 70/15/15 with seed 42: 175 training debates, 37 validation debates and 38 test debates. Classification and discovery use the same split. Because 437 texts are repeated across discussions, every test pair whose child or parent text appears in the training data is removed. This leaves 69,333 training pairs and 14,450 test pairs for classification (169 test pairs removed). No hyperparameter was tuned, so the validation debates are not used. The test set contains 34 English debates and 4 debates in other languages.
 
 **Negative pairs for discovery.** Each positive pair (claim, true parent) is accompanied by three negatives, one per difficulty level:
 - `cross_debate`: a claim from another debate;
@@ -127,14 +127,18 @@ For each debate with $n$ candidates per child, the random baseline is $1/n$ for 
 | Faugier et al. 2024 | Kialo 2024, 10 domains, fine-tuned Mistral-7B | macro-F1 | 89.7-93.9 | B2 64.9 |
 | Ruiz-Dolz et al. 2021 | US2016 and MM2012 (not Kialo), 4 classes including an artificial "no relation" class | macro-F1 | RoBERTa-large 0.70 (US2016), 0.61 (MM2012) | discovery: macro-F1 0.691 (2 classes) |
 
-**Classification.** Our models are below published results, for three reasons:
-1. **Stricter protocol.** We split by debate and remove shared texts, so we measure generalization to unseen topics. Published splits are not by debate.
-2. **Lighter models.** Ours are lexical or use a frozen encoder with a linear classifier. The published models are fine-tuned or are large language models.
-3. **Different data.** The Kialo snapshots and domains differ.
-
-Our lexical baseline is 4.6 points below the BoW + LR baseline of GraphNLI, which is consistent with the stricter protocol. The gap with fine-tuned models (about 25 points of macro-F1) shows the value of reading the pair jointly. Fine-tuning a cross-encoder on the pair is the natural next step.
-
 **Discovery.** None of these works evaluates parent ranking on Kialo. The only comparable setting is Ruiz-Dolz et al.'s artificial "no relation" class, which uses another corpus and four classes. We therefore report the chance levels, which make our discovery scores interpretable on their own.
+
+### Why our scores are lower than published results
+
+Scores between 0.62 and 0.65 must be read against the chance level of a balanced two-class task (0.50). B1 is 12 points above chance and B2 is 15 points above chance; both are clearly better than the majority baseline (macro-F1 0.335). They are, however, well below the state of the art (80-94). Four factors explain the gap:
+
+1. **A stricter evaluation protocol.** We hold out entire debates and remove every test pair whose text appears in the training set, so the models are tested on topics they have never seen. With a random split of pairs, pairs from the same debate, which share topic and vocabulary, appear in both training and test sets, and the scores are higher. Our lexical baseline is 4.6 points below the BoW + LR baseline of GraphNLI (62.4 against 67.0), which is consistent with this difference.
+2. **Models that do not read the pair jointly.** Whether a claim supports or attacks its parent is a property of the relation between two sentences (negation, contrast, concession, irony). B1 represents the pair as a bag of words, and B2 encodes each text separately with a frozen encoder. The models that reach 80-94 are fine-tuned on the pair or are large language models.
+3. **No tuning.** All hyperparameters are library defaults and the validation debates are unused.
+4. **Different data.** The Kialo snapshots, domains and label balance differ from one study to another.
+
+The discovery scores look low for a different reason: the task is much harder than classification. Finding the parent among 745 candidates on average gives Hits@1 = 0.127, which is about 50 times the chance level (0.0025). In binary discovery, accuracy (0.747) is below the trivial `not_linked` baseline (0.751) only because of the 1:3 class imbalance; macro-F1 (0.691 against 0.429) and PR-AUC (0.525 against 0.249) show a real signal.
 
 ### Critical evaluation
 
@@ -144,6 +148,17 @@ Our lexical baseline is 4.6 points below the BoW + LR baseline of GraphNLI, whic
 - **No tuning.** Hyperparameters are library defaults and the validation debates are unused. The results are therefore conservative baselines rather than optimized models.
 - **Data validity.** Labels are user-defined and relative to the parent. The 250 top-ranked debates are a biased sample. Four test debates are not in English, while the encoder is English-only.
 
+### Perspectives
+
+The following extensions are ordered by expected gain. All of them keep the same split by debate, so that results remain comparable.
+
+1. **Fine-tune a cross-encoder on the pair.** Fine-tune a transformer such as DistilRoBERTa or RoBERTa-base on the input `child [SEP] parent`, with a maximum length of 128 tokens (95% of the claims have at most 50 words). The validation debates would be used to choose the learning rate and the number of epochs. This addresses the main weakness of B1 and B2, which do not read the two texts jointly, and we expect it to close a large part of the gap with published fine-tuned models.
+2. **Retrieve, then rerank, for discovery.** Scoring all 745 candidates with a cross-encoder is expensive. A cheap first stage (D1, or cosine similarity between frozen embeddings) would keep the top 50 candidates. A cross-encoder trained on hard negatives (the `local` level: siblings, grandparent, children) would then rerank them.
+3. **Encode the context semantically.** Our lexical context (D2) does not help ranking. Following GraphNLI, the path from the claim to the thesis should be encoded with sentence embeddings and aggregated with weights that decrease with the distance.
+4. **Tune and measure the variance.** Hyperparameters could be selected on the validation debates, and results reported over several seeds with confidence intervals from a bootstrap over debates.
+5. **Compare with a large language model.** Gorur et al. evaluate prompting with four examples and a constrained `support`/`attack` output. Applying this to a sample of our test debates would measure the gain of a much larger model under the same protocol.
+6. **Handle languages.** The non-English debates could be processed with a multilingual encoder, or excluded and reported separately.
+
 ### Reproducibility
 
-All results come from `part2_2_relations.ipynb`, executed with Python 3.14, pandas 3.0.6, numpy 2.5.4, scikit-learn 1.9.1, sentence-transformers 3.4.1 and torch 2.14.1, on an Apple M1 with 16 GB of RAM. The seed is 42 for the split, the negatives and the classifiers. A full run takes about 42 minutes: about 12 minutes to build the negatives, 26 minutes for ranking and 5 minutes for B2. The unit tests (`python -m pytest test_part2.py`) cover the parser, the split, the metrics, the tie handling in ranking, and the orientation of the discovery scores.
+All results come from `part2_2_relations.ipynb`, executed with Python 3.14.2, pandas 3.0.6, numpy 2.5.4, scikit-learn 1.9.1, sentence-transformers 3.4.1 and torch 2.14.1, on an Apple M1 with 16 GB of RAM. `pyarrow` is not installed, so pandas uses the Python string backend; with `pyarrow`, the regular expression `\s` does not match some Unicode spaces and the duplicate count of Question 2.1 becomes 436 instead of 437, while all model results are unchanged. The seed is 42 for the split, the negatives and the classifiers. A full run of the notebook takes about 35 to 45 minutes, most of it spent building the negatives and ranking the candidates. The unit tests (`python -m pytest test_part2.py`) cover the parser, the split, the metrics, the tie handling in ranking, and the orientation of the discovery scores.
